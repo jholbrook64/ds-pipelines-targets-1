@@ -11,7 +11,7 @@
 ##     ~this is a placeholder for new comit to strucutre
 ## ---------------------------
 
-setwd("C:/Users/jholbrook/Documents/Rprojects/targets-1")    ## Jacks's working directory (PC)
+setwd("C:/Users/jholbrook/Documents/Rprojects/targets-1/")    ## Jacks's working directory (PC)
 library(dplyr)
 library(remotes)
 library(tidyverse)
@@ -20,47 +20,50 @@ library(stringr)
 library(sbtools)
 library(whisker)
 
-project_output_dir <- '3_visualize'
+project_output_dir <- 'my_dir'   # 1_fetch/out/my_dir
 
 dir.create(project_output_dir)
 
-# Get the data from Science Base
+# Get the data from Science Base    # good
 getCSV <- function(){
   mendota_file <- file.path(project_output_dir, 'model_RMSEs.csv')
-  item_file_download('5d925066e4b0c4f70d0d0599', names = 'me_RMSE.csv', destinations = mendota_file, overwrite_file = TRUE)
+  item_file_download('5d925066e4b0c4f70d0d0599', names = 'me_RMSE.csv',
+                     destinations = mendota_file, overwrite_file = TRUE)
+  mendota_file <- file.path(project_output_dir, 'model_RMSEs.csv')
   return(mendota_file)
 }
 
 # Prepare the data for plotting
-eval_data <- function(getCSV){
-  eval_data <- readr::read_csv(getCSV, col_types = 'iccd') %>% # switch mendota_file to function call
+eval_data <- function(in_csv){
+  out_data <- readr::read_csv(in_csv, col_types = 'iccd') %>%
     filter(str_detect(exper_id, 'similar_[0-9]+')) %>%
     mutate(col = case_when(
       model_type == 'pb' ~ '#1b9e77',
-      @@ -27,57 +44,79 @@ eval_data <- readr::read_csv(mendota_file, col_types = 'iccd') %>%
-        model_type == 'dl' ~ 22,
+      model_type == 'dl' ~'#d95f02',
+      model_type == 'pgdl' ~ '#7570b3'
+    ), pch = case_when(
+      model_type == 'pb' ~ 21,
+      model_type == 'dl' ~ 22,
       model_type == 'pgdl' ~ 23
     ), n_prof = as.numeric(str_extract(exper_id, '[0-9]+')))
-  return(eval_data)
+  return(out_data)
 }
 
 
 # Create a plot, this function won't return anything
-#createPlot <- function(cleanedData){
+createPlot <- function(eval_data){
 
-png(file = file.path(project_output_dir, 'figure_1.png'), width = 8, height = 10, res = 200, units = 'in')
+fp <-   file.path(project_output_dir, 'figure_1.png')
+png(file = fp, width = 8, height = 10, res = 200, units = 'in')
 par(omi = c(0,0,0.05,0.05), mai = c(1,1,0,0), las = 1, mgp = c(2,.5,0), cex = 1.5)
-# I would like to assing this to a vriable but 
+# I would like to assining this to a vriable but 
 plot(NA, NA, xlim = c(2, 1000), ylim = c(4.7, 0.75),
      ylab = "Test RMSE (°C)", xlab = "Training temperature profiles (#)", log = 'x', axes = FALSE)
 # log x axis vector
 n_profs <- c(2, 10, 50, 100, 500, 980)
-
-
 # set axis, this cannot be a function becuase 
 axis(1, at = c(-100, n_profs, 1e10), labels = c("", n_profs, ""), tck = -0.01)
 axis(2, at = seq(0,10), las = 1, tck = -0.01)
-
 # slight horizontal offsets so the markers don't overlap:
 offsets <- data.frame(pgdl = c(0.15, 0.5, 3, 7, 20, 30)) %>%
   mutate(dl = -pgdl, pb = 0, n_prof = n_profs)
@@ -90,13 +93,8 @@ for (mod in c('pb','dl','pgdl')){
   lines(d$x + tail(offsets[[mod]], nrow(d)), d$y, col = d$col[1], lty = 'dashed')
   # adds points
   points(d$x + tail(offsets[[mod]], nrow(d)), d$y, pch = d$pch[1], col = d$col[1], bg = 'white', lwd = 2.5, cex = 1.5)
+  
 }
-
-#points_Y <- c(0.79, 0.94, 1.09)
-#pchVal <- 23
-#columns <- c('#7570b3', '#d95f02', '#1b9e77')
-#modelNames <- c('Process-Guided Deep Learning', 'Deep Learning', 'Process-Based')
-#for(i in length(modelNames)){
 
 points(2.2, 0.79, col = '#7570b3', pch = 23, bg = 'white', lwd = 2.5, cex = 1.5)
 text(2.3, 0.8, 'Process-Guided Deep Learning', pos = 4, cex = 1.1)
@@ -107,27 +105,65 @@ text(2.3, 1.1, 'Process-Based', pos = 4, cex = 1.1)
 
 #writes it to the png file
 dev.off()
+}
+
+    # notes from lindsay: if you going to wrap a base R plot instruction in a function, you should have no return type and
+    # make sure that the png and dev.off are both in the function, these two rely off each other so they both either need to 
+    # be local vars or global vars. 
 
 # Save the processed data
+out_csv <- function(eval_data){
 readr::write_csv(eval_data, file = file.path(project_output_dir, 'model_summary_results.csv'))
-
+}
 
 # Save the model diagnostics
-renderData <- function(eval_data){
-  render_data <- list(pgdl_980mean = filter(eval_data, model_type == 'pgdl', exper_id == "similar_980") %>% pull(rmse) %>% mean %>% round(2),
-                      dl_980mean = filter(eval_data, model_type == 'dl', exper_id == "similar_980") %>% pull(rmse) %>% mean %>% round(2),
-                      pb_980mean = filter(eval_data, model_type == 'pb', exper_id == "similar_980") %>% pull(rmse) %>% mean %>% round(2),
-                      @@ -87,10 +126,14 @@ render_data <- list(pgdl_980mean = filter(eval_data, model_type == 'pgdl', exper
-                                                                                     pb_100mean = filter(eval_data, model_type == 'pb', exper_id == "similar_100") %>% pull(rmse) %>% mean %>% round(2),
-                                                                                     pgdl_2mean = filter(eval_data, model_type == 'pgdl', exper_id == "similar_2") %>% pull(rmse) %>% mean %>% round(2),
-                                                                                     pb_2mean = filter(eval_data, model_type == 'pb', exper_id == "similar_2") %>% pull(rmse) %>% mean %>% round(2))
-                                                               return(render_data)
-                                                               }
+dataRender <-  function(eval_data){
+render_data <- list(pgdl_980mean = filter(eval_data, model_type == 'pgdl', exper_id == "similar_980") %>% pull(rmse) %>% mean %>% round(2),
+                    dl_980mean = filter(eval_data, model_type == 'dl', exper_id == "similar_980") %>% pull(rmse) %>% mean %>% round(2),
+                    pb_980mean = filter(eval_data, model_type == 'pb', exper_id == "similar_980") %>% pull(rmse) %>% mean %>% round(2),
+                    dl_500mean = filter(eval_data, model_type == 'dl', exper_id == "similar_500") %>% pull(rmse) %>% mean %>% round(2),
+                    pb_500mean = filter(eval_data, model_type == 'pb', exper_id == "similar_500") %>% pull(rmse) %>% mean %>% round(2),
+                    dl_100mean = filter(eval_data, model_type == 'dl', exper_id == "similar_100") %>% pull(rmse) %>% mean %>% round(2),
+                    pb_100mean = filter(eval_data, model_type == 'pb', exper_id == "similar_100") %>% pull(rmse) %>% mean %>% round(2),
+                    pgdl_2mean = filter(eval_data, model_type == 'pgdl', exper_id == "similar_2") %>% pull(rmse) %>% mean %>% round(2),
+                    pb_2mean = filter(eval_data, model_type == 'pb', exper_id == "similar_2") %>% pull(rmse) %>% mean %>% round(2))
+return(render_data)
+     }
 
-
+whiskerRender <- function(dataRender){
 template_1 <- 'resulted in mean RMSEs (means calculated as average of RMSEs from the five dataset iterations) of {{pgdl_980mean}}, {{dl_980mean}}, and {{pb_980mean}}°C for the PGDL, DL, and PB models, respectively.
   The relative performance of DL vs PB depended on the amount of training data. The accuracy of Lake Mendota temperature predictions from the DL was better than PB when trained on 500 profiles 
   ({{dl_500mean}} and {{pb_500mean}}°C, respectively) or more, but worse than PB when training was reduced to 100 profiles ({{dl_100mean}} and {{pb_100mean}}°C respectively) or fewer.
   The PGDL prediction accuracy was more robust compared to PB when only two profiles were provided for training ({{pgdl_2mean}} and {{pb_2mean}}°C, respectively). '
 
-whisker.render(template_1 %>% str_remove_all('\n') %>% str_replace_all('  ', ' '), render_data ) %>% cat(file = file.path(project_output_dir, 'model_diagnostic_text.txt'))
+# dataRender() is supposed to be the input here
+whisker.render(template_1 %>% str_remove_all('\n') %>% str_replace_all('  ', ' '), dataRender ) %>% cat(file = file.path(project_output_dir, 'model_diagnostic_text.txt'))
+}
+
+
+# run this code block after adding each function to the namespaces:
+
+########
+getCSV()
+#create object for evaluated data:
+evalData <- eval_data(getCSV())
+thePlot <- createPlot(evalData)             # returns "null device 1, null device is always device 1, I think it aludes to the dev.off for the .png. "
+thePlot                                     # returns "object not found"
+
+# not sure which of these formats to do, the top one throws an error, this error can be resolved 
+# with passing the inner as a function rather than the function's name. Passing the function however doesn't output the file.
+
+#out_csv(evalData)
+# this shows that the funciton can RETURN the values, but won't write them to the file in the directory
+outPut <- out_csv(eval_data(getCSV()))
+outPut   
+
+renderList <- dataRender(eval_data(getCSV()))
+renderList
+
+whiskerPLot <- whiskerRender(renderList)     #similarily, this funciton can't write, though it can run. 
+whiskerPLot
+
+# note: I am currently debugging this, but I think there will be minimal changes after this point, I just wanted to push this code to show what ive been up to
+
+#~######~#
