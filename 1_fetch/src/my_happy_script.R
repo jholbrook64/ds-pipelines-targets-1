@@ -8,10 +8,9 @@
 ##
 ## ---------------------------
 ## Notes:
-##     ~this is a placeholder for new comit to strucutre
+##     
 ## ---------------------------
 
-setwd("C:/Users/jholbrook/Documents/Rprojects/targets-1/")    ## Jacks's working directory (PC)
 library(dplyr)
 library(remotes)
 library(tidyverse)
@@ -20,16 +19,18 @@ library(stringr)
 library(sbtools)
 library(whisker)
 
+# create new output directory
 project_output_dir <- 'my_dir'   # 1_fetch/out/my_dir
-
 dir.create(project_output_dir)
 
-# Get the data from Science Base    # good
-getCSV <- function(){
-  mendota_file <- file.path(project_output_dir, 'model_RMSEs.csv')
+#include a parameter for the path to the output folder from tHe project directory:
+out_folder <-  "1_fetch/out/my_dir"
+
+# Get the data from Science Base    
+getCSV <- function(out_folder){
+  mendota_file <- file.path(out_folder, 'model_RMSE.csv')
   item_file_download('5d925066e4b0c4f70d0d0599', names = 'me_RMSE.csv',
                      destinations = mendota_file, overwrite_file = TRUE)
-  mendota_file <- file.path(project_output_dir, 'model_RMSEs.csv')
   return(mendota_file)
 }
 
@@ -51,7 +52,7 @@ eval_data <- function(in_csv){
 
 
 # Create a plot, this function won't return anything
-createPlot <- function(eval_data){
+createPlot <- function(evalData){
 
 fp <-   file.path(project_output_dir, 'figure_1.png')
 png(file = fp, width = 8, height = 10, res = 200, units = 'in')
@@ -72,11 +73,12 @@ offsets <- data.frame(pgdl = c(0.15, 0.5, 3, 7, 20, 30)) %>%
 for (mod in c('pb','dl','pgdl')){
   
   #outer
-  mod_data <- filter(eval_data(getCSV()), model_type == mod) # mod data is set to a smaller dataframe with only 1 type of model
-  mod_profiles <- unique(mod_data$n_prof) # simply a cleaned version, no copies of data points 
+  # use function parameter here:
+  mod_data <- filter(evalData, model_type == mod) 
+  mod_profiles <- unique(mod_data$n_prof) 
   
   #inner
-  for (mod_profile in mod_profiles) # what I think this means is for each set of data in the x array of log values
+  for (mod_profile in mod_profiles) 
   {
     d <- filter(mod_data, n_prof == mod_profile) %>% 
       summarize(y0 = min(rmse), y1 = max(rmse), col = unique(col))
@@ -103,18 +105,13 @@ text(2.3, 0.95, 'Deep Learning', pos = 4, cex = 1.1)
 points(2.2, 1.09, col = '#1b9e77', pch = 21, bg = 'white', lwd = 2.5, cex = 1.5)
 text(2.3, 1.1, 'Process-Based', pos = 4, cex = 1.1)
 
+
 #writes it to the png file
 dev.off()
 }
-
     # notes from lindsay: if you going to wrap a base R plot instruction in a function, you should have no return type and
     # make sure that the png and dev.off are both in the function, these two rely off each other so they both either need to 
     # be local vars or global vars. 
-
-# Save the processed data
-out_csv <- function(eval_data){
-readr::write_csv(eval_data, file = file.path(project_output_dir, 'model_summary_results.csv'))
-}
 
 # Save the model diagnostics
 dataRender <-  function(eval_data){
@@ -127,43 +124,33 @@ render_data <- list(pgdl_980mean = filter(eval_data, model_type == 'pgdl', exper
                     pb_100mean = filter(eval_data, model_type == 'pb', exper_id == "similar_100") %>% pull(rmse) %>% mean %>% round(2),
                     pgdl_2mean = filter(eval_data, model_type == 'pgdl', exper_id == "similar_2") %>% pull(rmse) %>% mean %>% round(2),
                     pb_2mean = filter(eval_data, model_type == 'pb', exper_id == "similar_2") %>% pull(rmse) %>% mean %>% round(2))
-return(render_data)
-     }
-
-whiskerRender <- function(dataRender){
+     
 template_1 <- 'resulted in mean RMSEs (means calculated as average of RMSEs from the five dataset iterations) of {{pgdl_980mean}}, {{dl_980mean}}, and {{pb_980mean}}°C for the PGDL, DL, and PB models, respectively.
   The relative performance of DL vs PB depended on the amount of training data. The accuracy of Lake Mendota temperature predictions from the DL was better than PB when trained on 500 profiles 
   ({{dl_500mean}} and {{pb_500mean}}°C, respectively) or more, but worse than PB when training was reduced to 100 profiles ({{dl_100mean}} and {{pb_100mean}}°C respectively) or fewer.
   The PGDL prediction accuracy was more robust compared to PB when only two profiles were provided for training ({{pgdl_2mean}} and {{pb_2mean}}°C, respectively). '
 
-# dataRender() is supposed to be the input here
-whisker.render(template_1 %>% str_remove_all('\n') %>% str_replace_all('  ', ' '), dataRender ) %>% cat(file = file.path(project_output_dir, 'model_diagnostic_text.txt'))
+# since this is inside the dataRender function, this should be able to use the local variable render_data
+whisker.render(template_1 %>% str_remove_all('\n') %>% str_replace_all('  ', ' '), render_data) %>% cat(file = file.path(project_output_dir, 'model_diagnostic_text.txt'))
 }
 
-
+########
+# DIRECTIONS :
 # run this code block after adding each function to the namespaces:
 
-########
-getCSV()
+# obtain data from URL:
+getCSV(out_folder)
+
 #create object for evaluated data:
-evalData <- eval_data(getCSV())
-thePlot <- createPlot(evalData)             # returns "null device 1, null device is always device 1, I think it aludes to the dev.off for the .png. "
-thePlot                                     # returns "object not found"
+evalData <- eval_data(getCSV(out_folder))
 
-# not sure which of these formats to do, the top one throws an error, this error can be resolved 
-# with passing the inner as a function rather than the function's name. Passing the function however doesn't output the file.
+thePlot <- createPlot(evalData)   
+thePlot                                     
 
-#out_csv(evalData)
-# this shows that the funciton can RETURN the values, but won't write them to the file in the directory
-outPut <- out_csv(eval_data(getCSV()))
-outPut   
-
-renderList <- dataRender(eval_data(getCSV()))
+renderList <- dataRender(evalData)
 renderList
 
-whiskerPLot <- whiskerRender(renderList)     #similarily, this funciton can't write, though it can run. 
-whiskerPLot
-
-# note: I am currently debugging this, but I think there will be minimal changes after this point, I just wanted to push this code to show what ive been up to
+# Save the processed data
+readr::write_csv(evalData, file = file.path(project_output_dir, 'model_summary_results.csv'))
 
 #~######~#
