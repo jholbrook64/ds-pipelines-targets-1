@@ -2,13 +2,13 @@
 ##
 ## Script name: the happy script
 ##
-## Purpose of script:
+## Purpose of script:  targets training
 ##
 ## Author: Jack Holbrook (USGS)
 ##
 ## ---------------------------
 ## Notes:
-##     
+##      
 ## ---------------------------
 
 library(dplyr)
@@ -19,15 +19,8 @@ library(stringr)
 library(sbtools)
 library(whisker)
 
-# create new output directory
-project_output_dir <- 'my_dir'   # 1_fetch/out/my_dir
-dir.create(project_output_dir)
-
-#include a parameter for the path to the output folder from tHe project directory:
-out_folder <-  "1_fetch/out/my_dir"
-
 # Get the data from Science Base    
-getCSV <- function(out_folder){
+getCSV <- function(out_folder, complete_path){
   mendota_file <- file.path(out_folder, 'model_RMSE.csv')
   item_file_download('5d925066e4b0c4f70d0d0599', names = 'me_RMSE.csv',
                      destinations = mendota_file, overwrite_file = TRUE)
@@ -52,9 +45,9 @@ eval_data <- function(in_csv){
 
 
 # Create a plot, this function won't return anything
-createPlot <- function(evalData){
+createPlot <- function(evalData, plotOutput){
 
-fp <-   file.path(project_output_dir, 'figure_1.png')
+fp <-   file.path(plotOutput, 'figure_1.png')
 png(file = fp, width = 8, height = 10, res = 200, units = 'in')
 par(omi = c(0,0,0.05,0.05), mai = c(1,1,0,0), las = 1, mgp = c(2,.5,0), cex = 1.5)
 # I would like to assining this to a vriable but 
@@ -104,17 +97,12 @@ points(2.2, 0.94, col = '#d95f02', pch = 22, bg = 'white', lwd = 2.5, cex = 1.5)
 text(2.3, 0.95, 'Deep Learning', pos = 4, cex = 1.1)
 points(2.2, 1.09, col = '#1b9e77', pch = 21, bg = 'white', lwd = 2.5, cex = 1.5)
 text(2.3, 1.1, 'Process-Based', pos = 4, cex = 1.1)
-
-
 #writes it to the png file
 dev.off()
 }
-    # notes from lindsay: if you going to wrap a base R plot instruction in a function, you should have no return type and
-    # make sure that the png and dev.off are both in the function, these two rely off each other so they both either need to 
-    # be local vars or global vars. 
 
-# Save the model diagnostics
-dataRender <-  function(eval_data){
+# Save the model diagnostics, write to the processes folder 
+dataRender <-  function(eval_data, textOutput){    
 render_data <- list(pgdl_980mean = filter(eval_data, model_type == 'pgdl', exper_id == "similar_980") %>% pull(rmse) %>% mean %>% round(2),
                     dl_980mean = filter(eval_data, model_type == 'dl', exper_id == "similar_980") %>% pull(rmse) %>% mean %>% round(2),
                     pb_980mean = filter(eval_data, model_type == 'pb', exper_id == "similar_980") %>% pull(rmse) %>% mean %>% round(2),
@@ -131,26 +119,38 @@ template_1 <- 'resulted in mean RMSEs (means calculated as average of RMSEs from
   The PGDL prediction accuracy was more robust compared to PB when only two profiles were provided for training ({{pgdl_2mean}} and {{pb_2mean}}°C, respectively). '
 
 # since this is inside the dataRender function, this should be able to use the local variable render_data
-whisker.render(template_1 %>% str_remove_all('\n') %>% str_replace_all('  ', ' '), render_data) %>% cat(file = file.path(project_output_dir, 'model_diagnostic_text.txt'))
+whisker.render(template_1 %>% str_remove_all('\n') %>% str_replace_all('  ', ' '), render_data) %>% cat(file = file.path(textOutput, 'model_diagnostic_text.txt'))
 }
 
 ########
 # DIRECTIONS :
-# run this code block after adding each function to the namespaces:
+# run this code block after adding each function to the functions in your global environement:
 
 # obtain data from URL:
-getCSV(out_folder)
+# create new output directory
+Visualize <- '3_Visualize'
+visualize_output_dir <- '3_Visualize/out'   
+visualize_src <- '3_Visualize/src'   
+process_output_dir <- '2_process/out'
+dir.create(visualize_output_dir)
+dir.create(process_output_dir)
+dir.create(Visualize)
+dir.create(visualize_src)
+
+#include a parameter for the path to the output folder from tHe project directory:
+out_folderFetch <-  '1_fetch/out/'
+file_out <- getCSV(out_folderFetch)
 
 #create object for evaluated data:
-evalData <- eval_data(getCSV(out_folder))
+evalData <- eval_data(file_out)
 
-thePlot <- createPlot(evalData)   
-thePlot                                     
-
-renderList <- dataRender(evalData)
-renderList
+# writes to '3_Visualize/out'  
+createPlot(evalData, plotOutput = visualize_output_dir)   
+                                   
+# writes to '2_process/out'  
+dataRender(evalData, textOutput = process_output_dir)
 
 # Save the processed data
-readr::write_csv(evalData, file = file.path(project_output_dir, 'model_summary_results.csv'))
+readr::write_csv(evalData, file = file.path(process_output_dir, 'model_summary_results.csv'))
 
 #~######~#
