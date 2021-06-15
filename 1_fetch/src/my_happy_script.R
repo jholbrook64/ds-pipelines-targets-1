@@ -129,8 +129,7 @@ visualize_output_dir <- '3_Visualize/out'
 process_output_dir <- '2_process/out'
 
 # create directories from associated paths: these are kept because functions will throw errors if these don't exist 
-dir.create(process_output_dir)
-dir.create(Visualize)
+dir.create(visualize_output_dir)
 
 # get data from the web:
 # Include a parameter for the path to the output folder from the project directory:
