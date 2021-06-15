@@ -20,15 +20,17 @@ library(sbtools)
 library(whisker)
 
 # Get the data from Science Base    
-getCSV <- function(out_folder, complete_path){
+getCSV <- function(out_folder)
+  {
   mendota_file <- file.path(out_folder, 'model_RMSE.csv')
   item_file_download('5d925066e4b0c4f70d0d0599', names = 'me_RMSE.csv',
                      destinations = mendota_file, overwrite_file = TRUE)
   return(mendota_file)
-}
+  }
 
 # Prepare the data for plotting
-eval_data <- function(in_csv){
+eval_data <- function(in_csv)
+  {
   out_data <- readr::read_csv(in_csv, col_types = 'iccd') %>%
     filter(str_detect(exper_id, 'similar_[0-9]+')) %>%
     mutate(col = case_when(
@@ -41,12 +43,12 @@ eval_data <- function(in_csv){
       model_type == 'pgdl' ~ 23
     ), n_prof = as.numeric(str_extract(exper_id, '[0-9]+')))
   return(out_data)
-}
+  }
 
 
 # Create a plot, this function won't return anything
-createPlot <- function(evalData, plotOutput){
-
+createPlot <- function(evalData, plotOutput)
+  {
 fp <-   file.path(plotOutput, 'figure_1.png')
 png(file = fp, width = 8, height = 10, res = 200, units = 'in')
 par(omi = c(0,0,0.05,0.05), mai = c(1,1,0,0), las = 1, mgp = c(2,.5,0), cex = 1.5)
@@ -64,12 +66,10 @@ offsets <- data.frame(pgdl = c(0.15, 0.5, 3, 7, 20, 30)) %>%
 
 # loop: do this for each type of model in the analysis
 for (mod in c('pb','dl','pgdl')){
-  
   #outer
   # use function parameter here:
   mod_data <- filter(evalData, model_type == mod) 
   mod_profiles <- unique(mod_data$n_prof) 
-  
   #inner
   for (mod_profile in mod_profiles) 
   {
@@ -79,7 +79,6 @@ for (mod in c('pb','dl','pgdl')){
     # this is its own thing this line adds the values to a line for the plot
     lines(c(x_pos, x_pos), c(d$y0, d$y1), col = d$col, lwd = 2.5)
   }
-  
   #outer
   d <- group_by(mod_data, n_prof) %>% 
     summarize(y = mean(rmse), col = unique(col), pch = unique(pch)) %>%
@@ -88,7 +87,6 @@ for (mod in c('pb','dl','pgdl')){
   lines(d$x + tail(offsets[[mod]], nrow(d)), d$y, col = d$col[1], lty = 'dashed')
   # adds points
   points(d$x + tail(offsets[[mod]], nrow(d)), d$y, pch = d$pch[1], col = d$col[1], bg = 'white', lwd = 2.5, cex = 1.5)
-  
 }
 
 points(2.2, 0.79, col = '#7570b3', pch = 23, bg = 'white', lwd = 2.5, cex = 1.5)
@@ -124,33 +122,32 @@ whisker.render(template_1 %>% str_remove_all('\n') %>% str_replace_all('  ', ' '
 
 ########
 # DIRECTIONS :
-# run this code block after adding each function to the functions in your global environement:
+# run this code block after adding each function to the functions in your global environment:
 
-# obtain data from URL:
 # create new output directory
-Visualize <- '3_Visualize'
 visualize_output_dir <- '3_Visualize/out'   
-visualize_src <- '3_Visualize/src'   
 process_output_dir <- '2_process/out'
-dir.create(visualize_output_dir)
+
+# create directories from associated paths: these are kept because functions will throw errors if these don't exist 
 dir.create(process_output_dir)
 dir.create(Visualize)
-dir.create(visualize_src)
 
-#include a parameter for the path to the output folder from tHe project directory:
+# get data from the web:
+# Include a parameter for the path to the output folder from the project directory:
 out_folderFetch <-  '1_fetch/out/'
 file_out <- getCSV(out_folderFetch)
 
-#create object for evaluated data:
+#create data frame for evaluated data:
 evalData <- eval_data(file_out)
 
 # writes to '3_Visualize/out'  
+# will get a console output of "null device", means that dev.off retyurns the r device to state 1. 
 createPlot(evalData, plotOutput = visualize_output_dir)   
                                    
 # writes to '2_process/out'  
 dataRender(evalData, textOutput = process_output_dir)
 
-# Save the processed data
+# Save the processed data to '2_process/out'
 readr::write_csv(evalData, file = file.path(process_output_dir, 'model_summary_results.csv'))
 
 #~######~#
