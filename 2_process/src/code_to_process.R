@@ -1,6 +1,6 @@
 ## ---------------------------
 ##
-## Script name: Code.R
+## Script name: code_to_process.R 
 ##
 ## Purpose of script: test out the Targets package!
 ##
@@ -8,34 +8,8 @@
 ##
 ## ---------------------------
 ## Notes:
-##     ~
+##     ~ contains all functions involved in processing data 
 ## ---------------------------
-
-   
-download_data <- function(out_filepath)
-{ # Get the data from Science Base 
-  mendota_file <- file.path(out_filepath, 'model_RMSE.csv')
-  item_file_download('5d925066e4b0c4f70d0d0599', names = 'me_RMSE.csv',
-                     destinations = mendota_file, overwrite_file = TRUE)
-  return(mendota_file)
-}
-
-
-process_data <- function(in_filepath)
-{ # Prepare the data for plotting
-  eval_data <- readr::read_csv(in_filepath, col_types = 'iccd') %>%
-    filter(str_detect(exper_id, 'similar_[0-9]+')) %>%
-    mutate(col = case_when(
-      model_type == 'pb' ~ '#1b9e77',
-      model_type == 'dl' ~'#d95f02',
-      model_type == 'pgdl' ~ '#7570b3'
-    ), pch = case_when(
-      model_type == 'pb' ~ 21,
-      model_type == 'dl' ~ 22,
-      model_type == 'pgdl' ~ 23
-    ), n_prof = as.numeric(str_extract(exper_id, '[0-9]+')))
-  return(eval_data)
-}
 
 
 make_plot <- function(out_filepath, data)
@@ -54,13 +28,13 @@ make_plot <- function(out_filepath, data)
   # slight horizontal offsets so the markers don't overlap:
   offsets <- data.frame(pgdl = c(0.15, 0.5, 3, 7, 20, 30)) %>%
     mutate(dl = -pgdl, pb = 0, n_prof = n_profs)
-
+  
   # loop: do this for each type of model in the analysis
   for (mod in c('pb','dl','pgdl')){
     #outer
     # use function parameter here:
     mod_data <- filter(data, model_type == mod)
-  
+    
     mod_profiles <- unique(mod_data$n_prof)
     #inner
     for (mod_profile in mod_profiles)
@@ -93,8 +67,8 @@ make_plot <- function(out_filepath, data)
 
 
 write_csv <-  function(eval_data, file){
-# Save the processed data to '2_process/out'
-readr::write_csv(eval_data, "2_process/out/model_summary_results.csv")    #= file.path(file, 'model_summary_results.csv')
+  # Save the processed data to '2_process/out'
+  readr::write_csv(eval_data, "2_process/out/model_summary_results.csv")    #= file.path(file, 'model_summary_results.csv')
   return("model_summary_results.csv")
 }
 
@@ -119,3 +93,4 @@ generate_model_diagnostics <-  function(out_filepath, data){
   whisker.render(template_1 %>% str_remove_all('\n') %>% str_replace_all('  ', ' '), render_data) %>% cat(fp2) # cat(file = file.path(out_filepath, 'model_diagnostic_text.txt')
   return(fp2)
 }
+
